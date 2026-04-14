@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters
 from .models import CustomUser, Equipment, Booking, StudyMaterial
 from .serializers import UserSerializer, EquipmentSerializer, BookingSerializer, StudyMaterialSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import PermissionDenied
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -34,6 +35,23 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(student=self.request.user)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        new_status = request.data.get('status')
+
+        if new_status:
+            # 1. Verify the user is a Staff or Admin
+            if request.user.role not in ['STAFF', 'ADMIN'] and not request.user.is_superuser:
+                raise PermissionDenied("Security Alert: Only Staff can approve bookings.")
+            
+            # 2. Bypass the read-only lock and save directly to the database
+            instance.status = new_status
+            instance.approved_by = request.user
+            instance.save()
+
+        # Continue with the rest of the standard update
+        return super().partial_update(request, *args, **kwargs)
 
 class StudyMaterialViewSet(viewsets.ModelViewSet):
     serializer_class = StudyMaterialSerializer

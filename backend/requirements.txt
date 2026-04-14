@@ -1,0 +1,13 @@
+# Core Framework
+Django>=4.2.0
+djangorestframework>=3.14.0
+
+# Security & Authentication
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.3.0
+
+# Database Connectivity (PostgreSQL)
+psycopg2-binary>=2.9.9
+
+# Utility (Required if you decide to use ImageField instead of just FileField later)
+Pillow>=10.0.0

@@ -106,12 +106,16 @@ The frontend will run on
 http://localhost:5173/
 
 ## Architecture
-
+![alt text](image.png)
 
 ## Admin Control
-
+![alt text](image-1.png)
 
 ## Student View
+![alt text](image-2.png)
 
+## Staff View
+![alt text](image-3.png)
 
 ## Digital Library
+![alt text](image-4.png)

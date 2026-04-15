@@ -21,7 +21,6 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = ['id', 'student', 'student_name', 'equipment', 'equipment_name', 'request_date', 'start_time', 'end_time', 'status', 'approved_by']
         read_only_fields = ['status', 'approved_by', 'student']
 
-    # THE NEW ARCHITECTURE RULE: Data Integrity Validation
     def validate(self, data):
         equipment = data.get('equipment')
         start = data.get('start_time')
@@ -30,7 +29,6 @@ class BookingSerializer(serializers.ModelSerializer):
         if start and end and start >= end:
             raise serializers.ValidationError({"time": "End time must be after the start time."})
 
-        # Check the database for any overlapping bookings that are PENDING or APPROVED
         if start and end:
             overlapping_bookings = Booking.objects.filter(
                 equipment=equipment,

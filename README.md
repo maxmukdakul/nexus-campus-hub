@@ -58,6 +58,23 @@ python manage.py migrate
 
 # Create initial superuser (Admin)
 python manage.py createsuperuser
+
+# Create some test user
+python manage.py shell
+
+from users.models import CustomUser
+
+# Create Student
+CustomUser.objects.create_user(username='test_student', password='testpassword123', role='STUDENT')
+
+# Create Staff
+CustomUser.objects.create_user(username='test_staff', password='testpassword123', role='STAFF')
+
+# Create Admin
+CustomUser.objects.create_user(username='test_admin', password='testpassword123', role='ADMIN', is_staff=True, is_superuser=True)
+
+print("Test users created successfully!")
+exit()
 ```
 
 ### 2. Frontend Setup
@@ -87,3 +104,14 @@ npm run dev
 ```
 The frontend will run on 
 http://localhost:5173/
+
+## Architecture
+
+
+## Admin Control
+
+
+## Student View
+
+
+## Digital Library

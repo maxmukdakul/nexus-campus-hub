@@ -6,7 +6,7 @@ export default function Dashboard() {
     const { user, logout } = useAuth();
     
     // UI State
-    const [activeTab, setActiveTab] = useState('hardware'); // 'hardware' or 'digital'
+    const [activeTab, setActiveTab] = useState('hardware');
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -15,6 +15,10 @@ export default function Dashboard() {
     const [equipment, setEquipment] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [materials, setMaterials] = useState([]);
+
+    // Admin Form State (RESTORED)
+    const [newEqName, setNewEqName] = useState('');
+    const [newEqDesc, setNewEqDesc] = useState('');
 
     // File Upload State
     const [fileTitle, setFileTitle] = useState('');
@@ -43,7 +47,28 @@ export default function Dashboard() {
                 setMaterials(matRes.data.results || matRes.data || []);
             }
         } catch (err) {
-            setError("Could not communicate with the database.");
+            setError("Could not communicate with the database. Please relogin.");
+        }
+    };
+
+    // --- ADMIN CAPABILITY: CREATE/DELETE EQUIPMENT (RESTORED) ---
+    const handleAddEquipment = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('equipment/', { name: newEqName, description: newEqDesc, is_available: true });
+            setNewEqName(''); setNewEqDesc('');
+            fetchData();
+            setSuccessMessage("Hardware added to system.");
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (err) { setError("Failed to add equipment."); }
+    };
+
+    const handleDeleteEquipment = async (id) => {
+        if(window.confirm("Delete this hardware permanently?")) {
+            try {
+                await api.delete(`equipment/${id}/`);
+                fetchData();
+            } catch (err) { setError("Failed to delete. Active bookings may exist."); }
         }
     };
 
@@ -82,7 +107,7 @@ export default function Dashboard() {
         try {
             await api.post('materials/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setFileTitle(''); setFileDesc(''); setFileTags(''); setSelectedFile(null);
-            fileInputRef.current.value = "";
+            if (fileInputRef.current) fileInputRef.current.value = "";
             fetchData();
             setSuccessMessage("File uploaded for peer-review!");
             setTimeout(() => setSuccessMessage(''), 4000);
@@ -92,8 +117,14 @@ export default function Dashboard() {
     };
 
     const handleApproveMaterial = async (id, isApproved) => {
-        await api.patch(`materials/${id}/`, { is_approved: isApproved });
-        fetchData();
+        try {
+            await api.patch(`materials/${id}/`, { is_approved: isApproved });
+            fetchData();
+            setSuccessMessage("Document officially approved for the public library!");
+            setTimeout(() => setSuccessMessage(''), 4000);
+        } catch (err) {
+            setError("Failed to approve document.");
+        }
     };
 
     // --- SHARED UI STYLES ---
@@ -107,7 +138,7 @@ export default function Dashboard() {
                 <div>
                     <h1 style={{ margin: 0, color: '#0f172a', fontSize: '32px' }}>Nexus Resource Hub</h1>
                     <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
-                        Role: <strong style={{ color: '#2563eb' }}>{user?.role || 'SYSTEM ADMIN'}</strong> | User: <strong>{user?.username}</strong>
+                        Role: <strong style={{ color: isAdmin ? '#dc3545' : isStaff ? '#20c997' : '#2563eb' }}>{user?.role || 'SYSTEM ADMIN'}</strong> | User: <strong>{user?.username}</strong>
                     </p>
                 </div>
                 <button onClick={logout} className="danger">Logout</button>
@@ -132,6 +163,18 @@ export default function Dashboard() {
             {/* ============================== */}
             {activeTab === 'hardware' && (
                 <>
+                    {/* RESTORED ADMIN CONTROL PANEL */}
+                    {isAdmin && (
+                        <section style={{ marginBottom: '40px', background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                            <h2 style={{ margin: '0 0 15px 0', color: '#0f172a' }}>⚙️ Admin Control: Add Hardware</h2>
+                            <form onSubmit={handleAddEquipment} style={{ display: 'flex', gap: '15px' }}>
+                                <input type="text" placeholder="Hardware Name" value={newEqName} onChange={e => setNewEqName(e.target.value)} required style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                                <input type="text" placeholder="Description" value={newEqDesc} onChange={e => setNewEqDesc(e.target.value)} required style={{ flex: 2, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                                <button type="submit" style={{ background: '#0f172a', color: 'white', padding: '10px 20px', borderRadius: '6px' }}>+ Add to Catalog</button>
+                            </form>
+                        </section>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginBottom: '50px' }}>
                         {equipment.map(item => (
                             <div key={item.id} className="card" style={{ padding: '24px', borderRadius: '12px', borderTop: '4px solid #0f172a', background: 'white' }}>
@@ -140,8 +183,13 @@ export default function Dashboard() {
                                     <span style={{ fontSize: '11px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '12px', background: item.is_available ? '#d1fae5' : '#fee2e2', color: item.is_available ? '#065f46' : '#991b1b' }}>{item.is_available ? 'AVAILABLE' : 'IN USE'}</span>
                                 </div>
                                 <p style={{ color: '#64748b', fontSize: '14px' }}>{item.description}</p>
+                                
                                 {isStudent && (
                                     <button onClick={() => handleBook(item.id)} disabled={!item.is_available} className="success" style={{ marginTop: '15px', width: '100%' }}>Book Equipment</button>
+                                )}
+                                {/* RESTORED DELETE ASSET BUTTON */}
+                                {isAdmin && (
+                                    <button onClick={() => handleDeleteEquipment(item.id)} className="danger" style={{ marginTop: '15px', width: '100%', padding: '10px', borderRadius: '6px', background: '#ef4444', color: 'white', border: 'none', cursor: 'pointer' }}>Delete Asset</button>
                                 )}
                             </div>
                         ))}
@@ -150,18 +198,22 @@ export default function Dashboard() {
                     <h2 style={{ color: '#334155', marginBottom: '20px' }}>Active Reservations</h2>
                     <table style={{ width: '100%', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
                         <thead style={{ background: '#0f172a', color: 'white' }}>
-                            <tr><th style={{padding: '12px'}}>Item</th><th style={{padding: '12px'}}>Student</th><th style={{padding: '12px'}}>Status</th>{(isAdmin || isStaff) && <th style={{padding: '12px'}}>Action</th>}</tr>
+                            <tr><th style={{padding: '12px', textAlign: 'left'}}>Item</th><th style={{padding: '12px', textAlign: 'left'}}>Student</th><th style={{padding: '12px', textAlign: 'left'}}>Status</th>{(isAdmin || isStaff) && <th style={{padding: '12px', textAlign: 'left'}}>Action</th>}</tr>
                         </thead>
                         <tbody>
                             {bookings.map(b => (
                                 <tr key={b.id} style={{ borderBottom: '1px solid #eee' }}>
                                     <td style={{padding: '12px', fontWeight: 'bold'}}>{b.equipment_name}</td>
                                     <td style={{padding: '12px'}}>{b.student_name}</td>
-                                    <td style={{padding: '12px'}}>{b.status}</td>
+                                    <td style={{padding: '12px'}}>
+                                        <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', backgroundColor: b.status === 'APPROVED' ? '#d1fae5' : b.status === 'REJECTED' ? '#fee2e2' : '#fef3c7', color: b.status === 'APPROVED' ? '#065f46' : b.status === 'REJECTED' ? '#991b1b' : '#92400e' }}>
+                                            {b.status}
+                                        </span>
+                                    </td>
                                     {(isAdmin || isStaff) && (
                                         <td style={{padding: '12px', display: 'flex', gap: '5px'}}>
-                                            <button onClick={() => handleStatusUpdate(b.id, 'APPROVED')} style={{ background: '#10b981' }}>Approve</button>
-                                            <button onClick={() => handleStatusUpdate(b.id, 'REJECTED')} style={{ background: '#ef4444' }}>Reject</button>
+                                            <button onClick={() => handleStatusUpdate(b.id, 'APPROVED')} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Approve</button>
+                                            <button onClick={() => handleStatusUpdate(b.id, 'REJECTED')} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reject</button>
                                         </td>
                                     )}
                                 </tr>
@@ -181,12 +233,12 @@ export default function Dashboard() {
                         <h3 style={{ margin: '0 0 15px 0' }}>📤 Upload Study Material (Requires Peer Review)</h3>
                         <form onSubmit={handleFileUpload} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <div style={{ display: 'flex', gap: '15px' }}>
-                                <input type="text" placeholder="Document Title" value={fileTitle} onChange={e => setFileTitle(e.target.value)} required style={{ flex: 1, padding: '10px', borderRadius: '6px' }} />
-                                <input type="text" placeholder="Tags (e.g. Physics, Notes)" value={fileTags} onChange={e => setFileTags(e.target.value)} required style={{ flex: 1, padding: '10px', borderRadius: '6px' }} />
+                                <input type="text" placeholder="Document Title" value={fileTitle} onChange={e => setFileTitle(e.target.value)} required style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                                <input type="text" placeholder="Tags (e.g. Physics, Notes)" value={fileTags} onChange={e => setFileTags(e.target.value)} required style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                             </div>
-                            <input type="text" placeholder="Short Description" value={fileDesc} onChange={e => setFileDesc(e.target.value)} required style={{ padding: '10px', borderRadius: '6px' }} />
-                            <input type="file" ref={fileInputRef} onChange={e => setSelectedFile(e.target.files[0])} required style={{ padding: '10px', background: 'white', borderRadius: '6px' }} />
-                            <button type="submit" className="success" style={{ alignSelf: 'flex-start' }}>Submit for Review</button>
+                            <input type="text" placeholder="Short Description" value={fileDesc} onChange={e => setFileDesc(e.target.value)} required style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                            <input type="file" ref={fileInputRef} onChange={e => setSelectedFile(e.target.files[0])} required style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                            <button type="submit" className="success" style={{ alignSelf: 'flex-start', background: '#10b981', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Submit for Review</button>
                         </form>
                     </div>
 
@@ -194,7 +246,7 @@ export default function Dashboard() {
                     <h2 style={{ color: '#334155', marginBottom: '20px' }}>Study Materials Library</h2>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
                         {materials.map(mat => (
-                            <div key={mat.id} className="card" style={{ padding: '20px', background: 'white', borderLeft: mat.is_approved ? '4px solid #10b981' : '4px solid #f59e0b' }}>
+                            <div key={mat.id} className="card" style={{ padding: '20px', background: 'white', borderLeft: mat.is_approved ? '4px solid #10b981' : '4px solid #f59e0b', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <h3 style={{ margin: '0 0 5px 0' }}>{mat.title}</h3>
                                     {!mat.is_approved && <span style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold' }}>PENDING REVIEW</span>}
@@ -209,9 +261,8 @@ export default function Dashboard() {
                                             Download PDF
                                         </a>
                                     )}
-                                    {/* Staff Review Controls */}
                                     {(isAdmin || isStaff) && !mat.is_approved && (
-                                        <button onClick={() => handleApproveMaterial(mat.id, true)} className="success" style={{ flex: 1 }}>Approve Post</button>
+                                        <button onClick={() => handleApproveMaterial(mat.id, true)} className="success" style={{ flex: 1, background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Approve Post</button>
                                     )}
                                 </div>
                             </div>

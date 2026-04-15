@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, filters
 from .models import CustomUser, Equipment, Booking, StudyMaterial
 from .serializers import UserSerializer, EquipmentSerializer, BookingSerializer, StudyMaterialSerializer
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import PermissionDenied
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -55,24 +55,38 @@ class BookingViewSet(viewsets.ModelViewSet):
 
 class StudyMaterialViewSet(viewsets.ModelViewSet):
     serializer_class = StudyMaterialSerializer
-    parser_classes = (MultiPartParser, FormParser) # Allows file uploads
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter]
     search_fields = ['title', 'description', 'tags']
 
     def get_queryset(self):
         user = self.request.user
-        # Staff/Admins see everything (to approve them). Students only see approved files.
         if user.role in ['STAFF', 'ADMIN'] or user.is_superuser:
             return StudyMaterial.objects.all().order_by('-upload_date')
         return StudyMaterial.objects.filter(is_approved=True).order_by('-upload_date')
 
     def perform_create(self, serializer):
-        # Auto-attach the student who uploaded it
         serializer.save(uploaded_by=self.request.user)
 
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        if 'is_approved' in request.data:
+            # 1. Verify the user is a Staff or Admin
+            if request.user.role not in ['STAFF', 'ADMIN'] and not request.user.is_superuser:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Security Alert: Only Staff can approve documents.")
+            
+            # 2. Bypass the read-only lock and save directly to the database
+            is_approved = request.data.get('is_approved')
+            instance.is_approved = (str(is_approved).lower() == 'true' or is_approved is True)
+            instance.save()
+
+        return super().partial_update(request, *args, **kwargs)
+
     def get_permissions(self):
+        # ... (Keep your existing get_permissions block here)
         if self.action in ['update', 'partial_update', 'destroy']:
-            # Only staff can approve or delete files
             class IsStaffOrAdmin(permissions.BasePermission):
                 def has_permission(self, request, view):
                     return request.user.role in ['STAFF', 'ADMIN'] or request.user.is_superuser
